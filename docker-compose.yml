@@ -1,0 +1,69 @@
+services:
+  auth-db:
+    image: postgres:18
+    container_name: db-postgres
+    environment:
+      POSTGRES_DB: ${AUTH_NAME}
+      POSTGRES_USER: ${AUTH_USER}
+      POSTGRES_PASSWORD: ${AUTH_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - auth-data:/var/lib/postgresql
+    ports:
+      - "5433:5432"
+
+  user-db:
+    image: postgres:18
+    container_name: user-postgres
+    environment:
+      POSTGRES_DB: ${USER_NAME}
+      POSTGRES_USER: ${USER_USER}
+      POSTGRES_PASSWORD: ${USER_PASSWORD}
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - user-data:/var/lib/postgresql
+    ports:
+      - "5434:5432"
+
+  task-db:
+    image: postgres:18
+    container_name: task-postgres
+    environment:
+      POSTGRES_DB: ${TASK_NAME}
+      POSTGRES_USER: ${TASK_USER}
+      POSTGRES_PASSWORD: ${TASK_PASSWORD}
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - task-data:/var/lib/postgresql
+    ports:
+      - "5435:5432"
+
+  adminer:
+    image: adminer:5
+    container_name: adminer
+    ports:
+      - "5050:8080"
+    depends_on:
+      auth-db:
+        condition: service_healthy
+      user-db:
+        condition: service_healthy
+      task-db:
+        condition: service_healthy
+
+volumes:
+  auth-data:
+  user-data:
+  task-data:

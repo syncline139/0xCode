@@ -1,0 +1,10 @@
+package com.example.authservice.service;
+
+import com.example.authservice.dto.request.UserRequest;
+
+public interface AuthService {
+
+    String signUp(UserRequest userDto);
+
+    String signIn(UserRequest userDto);
+}
