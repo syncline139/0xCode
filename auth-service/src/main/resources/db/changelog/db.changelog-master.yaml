@@ -5,3 +5,7 @@ databaseChangeLog:
       file: db/changelog/changesets/002-create-table-refresh_token.sql
   - include:
       file: db/changelog/changesets/003-alter-table-users.sql
+  - include:
+      file: db/changelog/changesets/004-create-table-email-verification-code.sql
+  - include:
+      file: db/changelog/changesets/005-add_column_users.sql
