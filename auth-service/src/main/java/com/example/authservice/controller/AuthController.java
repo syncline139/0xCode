@@ -23,6 +23,6 @@ public class AuthController {
 
         authService.signUp(userDto);
 
-        return ResponseEntity.ok("Подтвердите email");
+        return ResponseEntity.ok("Код отправлен на email");
     }
 }

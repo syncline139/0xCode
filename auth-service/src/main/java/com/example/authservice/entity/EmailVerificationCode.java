@@ -1,6 +1,5 @@
 package com.example.authservice.entity;
 
-import com.example.authservice.constant.Role;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -9,35 +8,36 @@ import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.Instant;
-import java.util.List;
 import java.util.UUID;
 
 @Entity
-@Table(name = "users")
 @Getter
 @Setter
-@NoArgsConstructor
 @AllArgsConstructor
-public class User {
+@NoArgsConstructor
+@Table(name = "email_verification_code")
+public class EmailVerificationCode {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    private String email;
+    @ManyToOne
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
 
-    private String password;
-
-    @Enumerated(EnumType.STRING)
-    private Role role;
-
-    @Column(name = "email_verified")
-    private boolean emailVerified;
-
-    @OneToMany(mappedBy = "user")
-    private List<RefreshToken> refreshTokens;
+    private String code;
 
     @Column(name = "created_at", updatable = false)
     @CreationTimestamp
     private Instant createdAt;
+
+    @Column(name = "expires_at")
+    private Instant expiresAt;
+
+    public EmailVerificationCode(String code, User user, Instant expiresAt) {
+        this.code = code;
+        this.user = user;
+        this.expiresAt = expiresAt;
+    }
 }
