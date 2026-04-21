@@ -1,11 +1,13 @@
 package com.example.authservice.service.impl;
 
 import com.example.authservice.constant.Role;
+import com.example.authservice.dto.event.EmailSendEvent;
 import com.example.authservice.dto.request.UserRequest;
 import com.example.authservice.entity.EmailVerificationCode;
 import com.example.authservice.entity.User;
 import com.example.authservice.exception.auth.EmailAlreadyExistsException;
 import com.example.authservice.mapper.UserMapper;
+import com.example.authservice.producer.EmailSendProducer;
 import com.example.authservice.repository.EmailVerificationCodeRepository;
 import com.example.authservice.repository.UserRepository;
 import com.example.authservice.security.JwtTokenProvider;
@@ -34,6 +36,7 @@ public class AuthServiceImpl implements AuthService {
     private final UserRepository userRepository;
     private final UserMapper userMapper;
     private final EmailVerificationCodeRepository emailVerificationCodeRepository;
+    private final EmailSendProducer emailSendProducer;
 
     @Override
     @Transactional
@@ -50,17 +53,22 @@ public class AuthServiceImpl implements AuthService {
 
         userRepository.save(user);
 
+        String code = generatedCode();
+
         emailVerificationCodeRepository.save(new EmailVerificationCode(
-                generatedCode(),
+                code,
                 user,
                 Instant.now().plus(Duration.ofMinutes(15))
         ));
 
         tokenProvider.createRefreshToken(user);
+
+        emailSendProducer.sendEmail(new EmailSendEvent(userDto.email(), code));
+
         return null;
     }
 
-    public static String generatedCode() {
+    private static String generatedCode() {
         Random random = new Random();
         StringBuilder sb = new StringBuilder();
 
