@@ -17,14 +17,11 @@ public class EmailSendConsumer {
     private final MailSenderService mailSenderService;
 
     @KafkaListener(topics = "verification-code-topic", groupId = "email-sender-group")
-    public void emailSendConsumer(String message) {
-        EmailSendEvent emailSendEvent = objectMapper.readValue(message, EmailSendEvent.class);
-
-        log.info("Получил {}", emailSendEvent);
-
-        mailSenderService.send(emailSendEvent.email(), "Иди нахуй", emailSendEvent.code());
-
-        log.info("На почту {} отправлено сообщение: {}", emailSendEvent.email(), emailSendEvent.code());
+    public void emailSendConsumer(String message) { // Принимаем строку
+            EmailSendEvent emailSendEvent = objectMapper.readValue(message, EmailSendEvent.class);
+            log.info("Получил {}", emailSendEvent);
+            mailSenderService.send(emailSendEvent.email(), "Ваш код", emailSendEvent.code());
+            log.info("Код успешно отпрввлен на почту {}", emailSendEvent.email());
     }
 
 }

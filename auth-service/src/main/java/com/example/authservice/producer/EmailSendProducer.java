@@ -13,7 +13,7 @@ public class EmailSendProducer {
 
     private final KafkaTemplate<String, Object> kafkaTemplate;
 
-    public void sendEmail(EmailSendEvent emailSendEvent) {
+    public void sendEmails(EmailSendEvent emailSendEvent) {
         kafkaTemplate.send("verification-code-topic", emailSendEvent);
         log.info("EmailSendEvent {}", emailSendEvent);
     }
