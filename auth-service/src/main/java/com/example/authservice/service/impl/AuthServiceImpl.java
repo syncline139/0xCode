@@ -3,13 +3,17 @@ package com.example.authservice.service.impl;
 import com.example.authservice.constant.EventType;
 import com.example.authservice.constant.Role;
 import com.example.authservice.dto.request.UserRequest;
+import com.example.authservice.dto.response.JwtResponse;
 import com.example.authservice.entity.EmailVerificationCode;
 import com.example.authservice.entity.Outbox;
+import com.example.authservice.entity.RefreshToken;
 import com.example.authservice.entity.User;
 import com.example.authservice.exception.auth.EmailAlreadyExistsException;
+import com.example.authservice.exception.auth.IncorrectPasswordException;
 import com.example.authservice.mapper.UserMapper;
 import com.example.authservice.repository.EmailVerificationCodeRepository;
 import com.example.authservice.repository.OutboxRepository;
+import com.example.authservice.repository.RefreshTokenRepository;
 import com.example.authservice.repository.UserRepository;
 import com.example.authservice.security.JwtTokenProvider;
 import com.example.authservice.service.AuthService;
@@ -20,6 +24,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,6 +32,7 @@ import tools.jackson.databind.ObjectMapper;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Random;
 
 @Service
@@ -42,6 +48,7 @@ public class AuthServiceImpl implements AuthService {
     private final EmailVerificationCodeRepository emailVerificationCodeRepository;
     private final ObjectMapper objectMapper;
     private final OutboxRepository outboxRepository;
+    private final RefreshTokenRepository refreshTokenRepository;
 
 
     @Override
@@ -100,7 +107,16 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public String signIn(UserRequest userDto) {
+    public JwtResponse signIn(UserRequest userDto) {
+
+        User user = userRepository.findByEmail(userDto.email())
+                .orElseThrow(() -> new UsernameNotFoundException("Пользователь не найден"));
+
+        if (!verify(userDto.password(), user.getPassword())) {
+            throw new IncorrectPasswordException();
+        }
+
+
         // Попытка аутентификации пользователя
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
@@ -112,8 +128,19 @@ public class AuthServiceImpl implements AuthService {
         SecurityContextHolder.getContext().setAuthentication(authentication);
 
         UserDetails userDetails = (UserDetails) authentication.getPrincipal();
-        String token = tokenProvider.generateAccessToken(userDetails);
+        String accessToken = tokenProvider.generateAccessToken(userDetails);
 
-        return token;
+        List<RefreshToken> refreshTokens = refreshTokenRepository.findByUserId(user.getId());
+        String refreshToken = refreshTokens.stream()
+                .filter(t -> t.getExpiresAt().isAfter(Instant.now()))
+                .map(RefreshToken::getToken)
+                .findFirst()
+                .orElse("");
+
+        return new JwtResponse(accessToken, refreshToken);
+    }
+
+    private boolean verify(String rawPassword, String encodedPassword) {
+       return encoder.matches(rawPassword, encodedPassword);
     }
 }
