@@ -1,6 +1,7 @@
 package com.example.authservice.controller;
 
 import com.example.authservice.dto.request.UserRequest;
+import com.example.authservice.dto.request.VerifyRequest;
 import com.example.authservice.service.AuthService;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -37,4 +38,10 @@ public class AuthController {
     }
 
     //TODO: ендпоинт для подтвержения кода
+    @PostMapping("/verify")
+    public ResponseEntity<String> verifyAcc(@RequestBody VerifyRequest verifyRequest) {
+
+        authService.verify(verifyRequest);
+        return ResponseEntity.ok("Аккаунт успешно подтвержен");
+    }
 }

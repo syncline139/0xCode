@@ -3,6 +3,7 @@ package com.example.authservice.service.impl;
 import com.example.authservice.constant.EventType;
 import com.example.authservice.constant.Role;
 import com.example.authservice.dto.request.UserRequest;
+import com.example.authservice.dto.request.VerifyRequest;
 import com.example.authservice.entity.EmailVerificationCode;
 import com.example.authservice.entity.Outbox;
 import com.example.authservice.entity.RefreshToken;
@@ -159,6 +160,27 @@ public class AuthServiceImpl implements AuthService {
 
 
         return accessToken;
+    }
+
+    @Override
+    @Transactional
+    public void verify(VerifyRequest verifyRequest) {
+
+        User user = userRepository.findByEmail(verifyRequest.email())
+                .orElseThrow(() -> new UsernameNotFoundException("Пользователь не найден"));
+
+        if (user.isEmailVerified()) {
+            throw new IllegalArgumentException("Акканут уже подтвержден");
+        }
+
+        List<EmailVerificationCode> codes = emailVerificationCodeRepository.findAllByUserId(user.getId());
+
+        for (EmailVerificationCode code : codes) {
+            if (code.getCode().equalsIgnoreCase(verifyRequest.code())
+                    && code.getExpiresAt().isAfter(Instant.now())) {
+                user.setEmailVerified(true);
+            }
+        }
     }
 
     private boolean verify(String rawPassword, String encodedPassword) {
