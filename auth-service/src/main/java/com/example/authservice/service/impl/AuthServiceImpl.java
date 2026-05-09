@@ -3,12 +3,12 @@ package com.example.authservice.service.impl;
 import com.example.authservice.constant.EventType;
 import com.example.authservice.constant.Role;
 import com.example.authservice.dto.request.UserRequest;
-import com.example.authservice.dto.response.JwtResponse;
 import com.example.authservice.entity.EmailVerificationCode;
 import com.example.authservice.entity.Outbox;
 import com.example.authservice.entity.RefreshToken;
 import com.example.authservice.entity.User;
 import com.example.authservice.exception.auth.EmailAlreadyExistsException;
+import com.example.authservice.exception.auth.EmailNotConfirmedException;
 import com.example.authservice.exception.auth.IncorrectPasswordException;
 import com.example.authservice.mapper.UserMapper;
 import com.example.authservice.repository.EmailVerificationCodeRepository;
@@ -17,8 +17,11 @@ import com.example.authservice.repository.RefreshTokenRepository;
 import com.example.authservice.repository.UserRepository;
 import com.example.authservice.security.JwtTokenProvider;
 import com.example.authservice.service.AuthService;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -107,13 +110,19 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public JwtResponse signIn(UserRequest userDto) {
+    public String signIn(UserRequest userDto, HttpServletResponse response) {
 
         User user = userRepository.findByEmail(userDto.email())
                 .orElseThrow(() -> new UsernameNotFoundException("Пользователь не найден"));
 
         if (!verify(userDto.password(), user.getPassword())) {
+            log.info("Юзер не может войти в аккаунт т.к у него неверный пароль");
             throw new IncorrectPasswordException();
+        }
+
+        if (!user.isEmailVerified()) {
+            log.info("Юзер не может войти в аккаунт т.к у него не подтверженный акканут");
+            throw new EmailNotConfirmedException();
         }
 
 
@@ -124,6 +133,7 @@ public class AuthServiceImpl implements AuthService {
                         userDto.password()
                 )
         );
+
 
         SecurityContextHolder.getContext().setAuthentication(authentication);
 
@@ -137,7 +147,18 @@ public class AuthServiceImpl implements AuthService {
                 .findFirst()
                 .orElse("");
 
-        return new JwtResponse(accessToken, refreshToken);
+        ResponseCookie cookie = ResponseCookie.from("refreshToken", refreshToken)
+                .httpOnly(true)    // Ключевой момент! JS не прочитает
+                .secure(false)      // Только через HTTPS
+                .path("/api/auth/refresh") // Кука будет слаться только на эндпоинт обновления
+                .maxAge(30 * 24 * 60 * 60) // Живет столько же, сколько сам токен (30 дней)
+                .sameSite("Strict") // Защита от CSRF атак
+                .build();
+
+        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+
+
+        return accessToken;
     }
 
     private boolean verify(String rawPassword, String encodedPassword) {
