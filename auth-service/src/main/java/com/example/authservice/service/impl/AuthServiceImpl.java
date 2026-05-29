@@ -22,6 +22,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -32,6 +33,8 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+import org.springframework.web.server.ResponseStatusException;
 import tools.jackson.databind.ObjectMapper;
 
 import java.time.Duration;
@@ -68,7 +71,7 @@ public class AuthServiceImpl implements AuthService {
 
         String hashPassword = encoder.encode(userDto.password());
         user.setPassword(hashPassword);
-        user.setRole(Role.USER);
+        user.setRole(Role.ROLE_USER);
 
         userRepository.save(user);
         log.info("Пользователя {} сохранен в БД", userDto.email());
@@ -149,11 +152,11 @@ public class AuthServiceImpl implements AuthService {
                 .orElse("");
 
         ResponseCookie cookie = ResponseCookie.from("refreshToken", refreshToken)
-                .httpOnly(true)    // Ключевой момент! JS не прочитает
-                .secure(false)      // Только через HTTPS
-                .path("/api/auth/refresh") // Кука будет слаться только на эндпоинт обновления
-                .maxAge(30 * 24 * 60 * 60) // Живет столько же, сколько сам токен (30 дней)
-                .sameSite("Strict") // Защита от CSRF атак
+                .httpOnly(true)
+                .secure(false)
+                .path("/api/auth/refresh")
+                .maxAge(30 * 24 * 60 * 60)
+                .sameSite("Strict")
                 .build();
 
         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
@@ -164,7 +167,7 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     @Transactional
-    public void verify(VerifyRequest verifyRequest) {
+    public void verifyAcc(VerifyRequest verifyRequest) {
 
         User user = userRepository.findByEmail(verifyRequest.email())
                 .orElseThrow(() -> new UsernameNotFoundException("Пользователь не найден"));
@@ -172,6 +175,7 @@ public class AuthServiceImpl implements AuthService {
         if (user.isEmailVerified()) {
             throw new IllegalArgumentException("Акканут уже подтвержден");
         }
+
 
         List<EmailVerificationCode> codes = emailVerificationCodeRepository.findAllByUserId(user.getId());
 
@@ -181,6 +185,24 @@ public class AuthServiceImpl implements AuthService {
                 user.setEmailVerified(true);
             }
         }
+
+        throw new ResponseStatusException(HttpStatus.CONFLICT,"Неверный код для подтверждения акканут");
+    }
+
+    @Override
+    public String newAccessToken(String refreshToken, UserDetails userDetails) {
+        if (!StringUtils.hasText(refreshToken)) {
+            throw new IllegalArgumentException("Рефреш токен отсутствует или пустой");
+        }
+
+        List<RefreshToken> refreshTokens = refreshTokenRepository.findByToken(refreshToken);
+
+        for (RefreshToken token : refreshTokens) {
+            if (token.getExpiresAt().isAfter(Instant.now())) {
+                return tokenProvider.generateAccessToken(userDetails);
+            }
+        }
+        throw new IllegalArgumentException("не найден токен");
     }
 
     private boolean verify(String rawPassword, String encodedPassword) {

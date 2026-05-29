@@ -43,7 +43,7 @@ public class JwtTokenProvider {
 
         String refreshToken = Jwts.builder()
                 .subject(user.getEmail())
-                .claim("role", Role.USER)
+                .claim("role", Role.ROLE_USER)
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + jwtExpirationMs))
                 .signWith(secretKey)

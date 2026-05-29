@@ -1,7 +1,7 @@
 package com.example.authservice.constant;
 
 public enum Role {
-    USER,
-    PREMIUM,
-    ADMIN
+    ROLE_USER,
+    ROLE_PREMIUM,
+    ROLE_ADMIN
 }

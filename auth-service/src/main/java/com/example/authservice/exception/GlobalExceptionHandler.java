@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestControllerAdvice(annotations = RestController.class)
 public class GlobalExceptionHandler {
@@ -18,10 +19,18 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(ex.toString(), HttpStatus.BAD_REQUEST);
     }
 
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<String> handleResponseStatusException(ResponseStatusException ex) {
+
+        return new ResponseEntity<>(ex.toString(), HttpStatus.BAD_REQUEST);
+    }
+
     @ExceptionHandler(EmailNotConfirmedException.class)
     public ResponseEntity<String> handleEmailNotConfirmedExceptions(EmailNotConfirmedException ex) {
 
-        return new ResponseEntity<>(ex.toString(), HttpStatus.BAD_REQUEST);
+        String message = "Юзер не может войти в аккаунт т.к у него не подтверженный акканут";
+
+        return new ResponseEntity<>(message, HttpStatus.BAD_REQUEST);
     }
 
     @ExceptionHandler(IncorrectPasswordException.class)
