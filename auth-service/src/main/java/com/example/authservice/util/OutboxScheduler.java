@@ -1,9 +1,8 @@
 package com.example.authservice.util;
 
-import com.example.authservice.dto.event.EmailSendEvent;
+import com.example.authservice.dto.event.EmailVerificationEvent;
 import com.example.authservice.entity.Outbox;
-import com.example.authservice.mapper.EmailSendMapper;
-import com.example.authservice.producer.EmailSendProducer;
+import com.example.authservice.producer.EmailVerificationProducer;
 import com.example.authservice.repository.OutboxRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,13 +22,12 @@ public class OutboxScheduler {
 
     public static final int LIMIT = 5;
 
-    private final EmailSendProducer emailSendProducer;
+    private final EmailVerificationProducer emailVerificationProducer;
     private final OutboxRepository outboxRepository;
-    private final EmailSendMapper emailSendMapper;
     private final ObjectMapper objectMapper;
 
     @Scheduled(fixedDelay = 5000)
-    @Transactional
+    @Transactional // нужна для того что бы сохранить параметр sent_at в БД благодаря dirty checking
     void sendMessages() {
 
         List<Outbox> pendingEvents = outboxRepository.findPendingEvents(LIMIT);
@@ -40,24 +38,21 @@ public class OutboxScheduler {
 
         for (Outbox event : pendingEvents) {
 
-            EmailSendEvent emailSendEvent = mapToDto(event.getPayload());
+            EmailVerificationEvent emailSendEvent = mapToDto(event.getPayload());
 
-            emailSendProducer.sendEmails(emailSendEvent);
+            emailVerificationProducer.sendEmails(emailSendEvent);
             event.setSentAt(Instant.now());
             log.info("Отправил сообщение {}", event);
         }
 
     }
 
-    private EmailSendEvent mapToDto(String payload){
+    private EmailVerificationEvent mapToDto(String payload){
         JsonNode node = objectMapper.readTree(payload);
 
-        // Достаем code с верхнего уровня
         String code = node.get("code").asString();
+        String email = node.get("email").asString();
 
-        // Достаем email из вложенного объекта user
-        String email = node.get("user").get("email").asString();
-
-        return new EmailSendEvent(email, code);
+        return new EmailVerificationEvent(email, code);
     }
 }

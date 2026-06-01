@@ -51,10 +51,12 @@ public class AuthController {
         return ResponseEntity.ok(accessToken);
     }
 
-//    @PostMapping("/refreshVerifyCode")
-//    public ResponseEntity<?> refreshVerifyCode(@RequestBody @Valid UserRequest userDto) {
-//
-//
-//
-//    }
+    @PostMapping("/refreshVerifyCode")
+    public ResponseEntity<?> refreshVerifyCode(@RequestBody @Valid UserRequest userDto) {
+
+
+        authService.refreshVerifyCode(userDto);
+
+        return ResponseEntity.ok().build();
+    }
 }

@@ -14,4 +14,6 @@ public interface AuthService {
     void verifyAcc(VerifyRequest verifyRequest);
 
     String newAccessToken(String refreshToken, UserDetails userDetails);
+
+    void refreshVerifyCode(UserRequest userDto);
 }

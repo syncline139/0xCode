@@ -2,6 +2,7 @@ package com.example.authservice.service.impl;
 
 import com.example.authservice.constant.EventType;
 import com.example.authservice.constant.Role;
+import com.example.authservice.dto.event.EmailVerificationEvent;
 import com.example.authservice.dto.request.UserRequest;
 import com.example.authservice.dto.request.VerifyRequest;
 import com.example.authservice.entity.EmailVerificationCode;
@@ -59,7 +60,7 @@ public class AuthServiceImpl implements AuthService {
 
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public String signUp(UserRequest userDto) {
         log.info("Началась регистрация пользоваля: {}", userDto.email());
         if (userRepository.existsByEmail(userDto.email())) {
@@ -76,6 +77,15 @@ public class AuthServiceImpl implements AuthService {
         userRepository.save(user);
         log.info("Пользователя {} сохранен в БД", userDto.email());
 
+        sendEmailVerificationCode(user);
+
+        tokenProvider.createRefreshToken(user);
+        log.info("Создан рефреш токен");
+
+        return null;
+    }
+
+    private void sendEmailVerificationCode(User user) {
         String code = generatedCode();
         log.info("Сгенерирован код для подтверрдждения почты {}",code);
 
@@ -88,18 +98,15 @@ public class AuthServiceImpl implements AuthService {
         emailVerificationCodeRepository.save(emailVerificationCode);
         log.info("Код успешно сохранен в БД");
 
-        tokenProvider.createRefreshToken(user);
-        log.info("Создан рефреш токен");
 
 
         Outbox event = Outbox.builder()
                 .eventType(EventType.EMAIL_SEND_CODE.name())
-                .payload(objectMapper.writeValueAsString(emailVerificationCode))
+                .payload(objectMapper.writeValueAsString(new EmailVerificationEvent(user.getEmail(), code)))
                 .build();
 
         outboxRepository.save(event);
-        log.info("Сообщения успешно отправлено в таблицу outbox");
-        return null;
+        log.info("Сообщения успешно сохранено в таблице outbox");
     }
 
     private static String generatedCode() {
@@ -179,14 +186,18 @@ public class AuthServiceImpl implements AuthService {
 
         List<EmailVerificationCode> codes = emailVerificationCodeRepository.findAllByUserId(user.getId());
 
+        boolean flag = false;
+
         for (EmailVerificationCode code : codes) {
             if (code.getCode().equalsIgnoreCase(verifyRequest.code())
                     && code.getExpiresAt().isAfter(Instant.now())) {
                 user.setEmailVerified(true);
+                flag = true;
             }
         }
-
-        throw new ResponseStatusException(HttpStatus.CONFLICT,"Неверный код для подтверждения акканут");
+        if (!flag) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Неверный код для подтверждения акканут");
+        }
     }
 
     @Override
@@ -203,6 +214,20 @@ public class AuthServiceImpl implements AuthService {
             }
         }
         throw new IllegalArgumentException("не найден токен");
+    }
+
+    @Override
+    public void refreshVerifyCode(UserRequest userRequest) {
+
+        User user = userRepository.findByEmail(userRequest.email())
+                .orElseThrow(() -> new UsernameNotFoundException("Пользователь не найден"));
+
+        if (!verify(userRequest.password(), user.getPassword())) {
+            log.info("Юзер не может войти в аккаунт т.к у него неверный пароль");
+            throw new IncorrectPasswordException();
+        }
+
+        sendEmailVerificationCode(user);
     }
 
     private boolean verify(String rawPassword, String encodedPassword) {
