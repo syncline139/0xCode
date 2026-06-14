@@ -5,6 +5,8 @@ import com.example.authservice.exception.auth.EmailNotConfirmedException;
 import com.example.authservice.exception.auth.IncorrectPasswordException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.DisabledException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -39,4 +41,19 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(ex.toString(), HttpStatus.BAD_REQUEST);
     }
 
+    @ExceptionHandler(BadCredentialsException.class)
+    public ResponseEntity<String> handleIncorrectPasswordExceptions(BadCredentialsException ex) {
+
+        String message = "Пароль не совпадет";
+
+        return new ResponseEntity<>(message, HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(DisabledException.class)
+    public ResponseEntity<String> handleIncorrectPasswordExceptions(DisabledException ex) {
+
+        String message = "Нужно подтвердить почту при регистрации";
+
+        return new ResponseEntity<>(message, HttpStatus.BAD_REQUEST);
+    }
 }
