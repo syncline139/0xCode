@@ -10,13 +10,13 @@ import com.example.authservice.entity.Outbox;
 import com.example.authservice.entity.RefreshToken;
 import com.example.authservice.entity.User;
 import com.example.authservice.exception.auth.EmailAlreadyExistsException;
-import com.example.authservice.exception.auth.EmailNotConfirmedException;
 import com.example.authservice.exception.auth.IncorrectPasswordException;
 import com.example.authservice.mapper.UserMapper;
 import com.example.authservice.repository.EmailVerificationCodeRepository;
 import com.example.authservice.repository.OutboxRepository;
 import com.example.authservice.repository.RefreshTokenRepository;
 import com.example.authservice.repository.UserRepository;
+import com.example.authservice.security.CustomUserDetails;
 import com.example.authservice.security.JwtTokenProvider;
 import com.example.authservice.service.AuthService;
 import jakarta.servlet.http.HttpServletResponse;
@@ -28,7 +28,6 @@ import org.springframework.http.ResponseCookie;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -41,6 +40,7 @@ import tools.jackson.databind.ObjectMapper;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Objects;
 import java.util.Random;
 
 @Service
@@ -64,7 +64,7 @@ public class AuthServiceImpl implements AuthService {
     public String signUp(UserRequest userDto) {
         log.info("Началась регистрация пользоваля: {}", userDto.email());
         if (userRepository.existsByEmail(userDto.email())) {
-            log.info("email: {} уже находится в БД",userDto.email());
+            log.info("email: {} уже находится в БД", userDto.email());
             throw new EmailAlreadyExistsException();
         }
 
@@ -87,7 +87,7 @@ public class AuthServiceImpl implements AuthService {
 
     private void sendEmailVerificationCode(User user) {
         String code = generatedCode();
-        log.info("Сгенерирован код для подтверрдждения почты {}",code);
+        log.info("Сгенерирован код для подтверрдждения почты {}", code);
 
         EmailVerificationCode emailVerificationCode = new EmailVerificationCode(
                 code,
@@ -97,7 +97,6 @@ public class AuthServiceImpl implements AuthService {
 
         emailVerificationCodeRepository.save(emailVerificationCode);
         log.info("Код успешно сохранен в БД");
-
 
 
         Outbox event = Outbox.builder()
@@ -122,21 +121,6 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public String signIn(UserRequest userDto, HttpServletResponse response) {
-
-        User user = userRepository.findByEmail(userDto.email())
-                .orElseThrow(() -> new UsernameNotFoundException("Пользователь не найден"));
-
-        if (!verify(userDto.password(), user.getPassword())) {
-            log.info("Юзер не может войти в аккаунт т.к у него неверный пароль");
-            throw new IncorrectPasswordException();
-        }
-
-        if (!user.isEmailVerified()) {
-            log.info("Юзер не может войти в аккаунт т.к у него не подтверженный акканут");
-            throw new EmailNotConfirmedException();
-        }
-
-
         // Попытка аутентификации пользователя
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
@@ -145,10 +129,10 @@ public class AuthServiceImpl implements AuthService {
                 )
         );
 
+        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+        Objects.requireNonNull(userDetails, "UserDetails не может быть null");
+        User user = userDetails.getUser();
 
-        SecurityContextHolder.getContext().setAuthentication(authentication);
-
-        UserDetails userDetails = (UserDetails) authentication.getPrincipal();
         String accessToken = tokenProvider.generateAccessToken(userDetails);
 
         List<RefreshToken> refreshTokens = refreshTokenRepository.findByUserId(user.getId());
@@ -167,7 +151,6 @@ public class AuthServiceImpl implements AuthService {
                 .build();
 
         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
-
 
         return accessToken;
     }
@@ -231,6 +214,6 @@ public class AuthServiceImpl implements AuthService {
     }
 
     private boolean verify(String rawPassword, String encodedPassword) {
-       return encoder.matches(rawPassword, encodedPassword);
+        return encoder.matches(rawPassword, encodedPassword);
     }
 }

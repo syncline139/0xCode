@@ -30,14 +30,14 @@ public class AuthController {
 
     @PostMapping("/sign-in")
     public ResponseEntity<String> signIn(@RequestBody @Valid UserRequest userDto,
-                                              HttpServletResponse response) {
+                                         HttpServletResponse response) {
 
-        String accessToken = authService.signIn(userDto,response);
+        String accessToken = authService.signIn(userDto, response);
         return ResponseEntity.status(HttpStatus.OK).body(accessToken);
     }
 
     @PostMapping("/verify")
-    public ResponseEntity<String> verifyAcc(@RequestBody VerifyRequest verifyRequest) {
+    public ResponseEntity<String> verifyAcc(@RequestBody @Valid VerifyRequest verifyRequest) {
 
         authService.verifyAcc(verifyRequest);
         return ResponseEntity.ok("Аккаунт успешно подтвержен");
@@ -45,15 +45,14 @@ public class AuthController {
 
     @PostMapping("/refresh")
     public ResponseEntity<String> newAccessToken(@CookieValue(name = "refreshToken") String refreshToken,
-                                            @AuthenticationPrincipal UserDetails userDetails) {
+                                                 @AuthenticationPrincipal UserDetails userDetails) {
 
         String accessToken = authService.newAccessToken(refreshToken, userDetails);
         return ResponseEntity.ok(accessToken);
     }
 
     @PostMapping("/refreshVerifyCode")
-    public ResponseEntity<?> refreshVerifyCode(@RequestBody @Valid UserRequest userDto) {
-
+    public ResponseEntity<HttpStatus> refreshVerifyCode(@RequestBody @Valid UserRequest userDto) {
 
         authService.refreshVerifyCode(userDto);
 
