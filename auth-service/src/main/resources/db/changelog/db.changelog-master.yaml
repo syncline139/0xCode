@@ -11,3 +11,5 @@ databaseChangeLog:
       file: db/changelog/changesets/005-add_column_users.sql
   - include:
       file: db/changelog/changesets/006-add-outbox-table.sql
+  - include:
+      file: db/changelog/changesets/007-alter-table-outbox.sql
