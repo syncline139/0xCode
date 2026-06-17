@@ -1,5 +1,6 @@
 package com.example.authservice.util;
 
+import com.example.authservice.constant.OutboxStatus;
 import com.example.authservice.dto.event.EmailVerificationEvent;
 import com.example.authservice.entity.Outbox;
 import com.example.authservice.producer.EmailVerificationProducer;
@@ -20,7 +21,7 @@ import java.util.List;
 @Slf4j
 public class OutboxScheduler {
 
-    public static final int LIMIT = 5;
+    private static final int LIMIT = 5;
 
     private final EmailVerificationProducer emailVerificationProducer;
     private final OutboxRepository outboxRepository;
@@ -29,17 +30,26 @@ public class OutboxScheduler {
     @Scheduled(fixedDelay = 5000)
     @Transactional // что бы sent_at сохранилась в БД
     void sendMessages() {
-        List<Outbox> pendingEvents = outboxRepository.findPendingEvents(LIMIT);
+        List<Outbox> pendingEvents = outboxRepository.findPendingEvents(LIMIT, OutboxStatus.PENDING.name());
 
         if (pendingEvents.isEmpty()) {
             return;
         }
 
         for (Outbox event : pendingEvents) {
-            EmailVerificationEvent emailSendEvent = mapToDto(event.getPayload());
-            emailVerificationProducer.sendEmails(emailSendEvent);
-            event.setSentAt(Instant.now());
-            log.info("Отправил сообщение {}", event);
+            try {
+                EmailVerificationEvent emailSendEvent = mapToDto(event.getPayload());
+                emailVerificationProducer.sendEmails(emailSendEvent);
+
+                event.setStatus(OutboxStatus.DONE);
+                event.setSentAt(Instant.now());
+                log.info("Отправил сообщение {}", event);
+            } catch (Exception e) {
+                log.error("Ошибка собщения {}", event.getId(), e);
+
+                event.setStatus(OutboxStatus.FAILED);
+                event.setErrorReason(e.getMessage());
+            }
         }
     }
 

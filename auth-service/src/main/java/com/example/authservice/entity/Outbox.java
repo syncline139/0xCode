@@ -1,5 +1,6 @@
 package com.example.authservice.entity;
 
+import com.example.authservice.constant.OutboxStatus;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -35,4 +36,13 @@ public class Outbox {
 
     @Column(name = "sent_at")
     private Instant sentAt;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false)
+    @Builder.Default
+    private OutboxStatus status = OutboxStatus.PENDING;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "error_reason", columnDefinition = "jsonb")
+    private String errorReason;
 }
