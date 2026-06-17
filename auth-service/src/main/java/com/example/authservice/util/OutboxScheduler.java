@@ -27,9 +27,8 @@ public class OutboxScheduler {
     private final ObjectMapper objectMapper;
 
     @Scheduled(fixedDelay = 5000)
-    @Transactional // нужна для того что бы сохранить параметр sent_at в БД благодаря dirty checking
+    @Transactional // что бы sent_at сохранилась в БД
     void sendMessages() {
-
         List<Outbox> pendingEvents = outboxRepository.findPendingEvents(LIMIT);
 
         if (pendingEvents.isEmpty()) {
@@ -37,19 +36,15 @@ public class OutboxScheduler {
         }
 
         for (Outbox event : pendingEvents) {
-
             EmailVerificationEvent emailSendEvent = mapToDto(event.getPayload());
-
             emailVerificationProducer.sendEmails(emailSendEvent);
             event.setSentAt(Instant.now());
             log.info("Отправил сообщение {}", event);
         }
-
     }
 
-    private EmailVerificationEvent mapToDto(String payload){
+    private EmailVerificationEvent mapToDto(String payload) {
         JsonNode node = objectMapper.readTree(payload);
-
         String code = node.get("code").asString();
         String email = node.get("email").asString();
 

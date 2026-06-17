@@ -135,6 +135,11 @@ public class AuthServiceImpl implements AuthService {
 
         String accessToken = tokenProvider.generateAccessToken(userDetails);
 
+
+        // Мы вытягиваем абсолютно все рефреш токены пользоваля
+        // А нам нужен лишь 1 активный
+        // В случаее если токена у пользоваля нету, мы отдаем ему пустую сроку
+        // которая затем попадет в куки пользоваля и клиент будет ходить с пустым токеном
         List<RefreshToken> refreshTokens = refreshTokenRepository.findByUserId(user.getId());
         String refreshToken = refreshTokens.stream()
                 .filter(t -> t.getExpiresAt().isAfter(Instant.now()))
