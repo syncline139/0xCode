@@ -3,7 +3,6 @@ package com.example.authservice.service;
 import com.example.authservice.dto.request.UserRequest;
 import com.example.authservice.dto.request.VerifyRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.security.core.userdetails.UserDetails;
 
 public interface AuthService {
 
@@ -13,7 +12,7 @@ public interface AuthService {
 
     void verifyAcc(VerifyRequest verifyRequest);
 
-    String newAccessToken(String refreshToken, UserDetails userDetails);
+    String newAccessToken(String refreshToken);
 
     void refreshVerifyCode(UserRequest userDto);
 }

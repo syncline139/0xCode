@@ -28,7 +28,6 @@ import org.springframework.http.ResponseCookie;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -40,7 +39,6 @@ import tools.jackson.databind.ObjectMapper;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
-import java.util.Objects;
 import java.util.Random;
 
 @Service
@@ -130,11 +128,9 @@ public class AuthServiceImpl implements AuthService {
         );
 
         CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
-        Objects.requireNonNull(userDetails, "UserDetails не может быть null");
         User user = userDetails.getUser();
 
         String accessToken = tokenProvider.generateAccessToken(userDetails);
-
 
         // Мы вытягиваем абсолютно все рефреш токены пользоваля
         // А нам нужен лишь 1 активный
@@ -189,7 +185,7 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public String newAccessToken(String refreshToken, UserDetails userDetails) {
+    public String newAccessToken(String refreshToken) {
         if (!StringUtils.hasText(refreshToken)) {
             throw new IllegalArgumentException("Рефреш токен отсутствует или пустой");
         }
@@ -198,6 +194,7 @@ public class AuthServiceImpl implements AuthService {
 
         for (RefreshToken token : refreshTokens) {
             if (token.getExpiresAt().isAfter(Instant.now())) {
+                CustomUserDetails userDetails = new CustomUserDetails(token.getUser());
                 return tokenProvider.generateAccessToken(userDetails);
             }
         }

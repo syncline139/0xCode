@@ -44,10 +44,9 @@ public class AuthController {
     }
 
     @PostMapping("/refresh")
-    public ResponseEntity<String> newAccessToken(@CookieValue(name = "refreshToken") String refreshToken,
-                                                 @AuthenticationPrincipal UserDetails userDetails) {
+    public ResponseEntity<String> newAccessToken(@CookieValue(name = "refreshToken") String refreshToken) {
 
-        String accessToken = authService.newAccessToken(refreshToken, userDetails);
+        String accessToken = authService.newAccessToken(refreshToken);
         return ResponseEntity.ok(accessToken);
     }
 

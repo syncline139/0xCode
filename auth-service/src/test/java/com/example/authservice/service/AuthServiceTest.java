@@ -17,11 +17,14 @@ import com.example.authservice.repository.EmailVerificationCodeRepository;
 import com.example.authservice.repository.OutboxRepository;
 import com.example.authservice.repository.RefreshTokenRepository;
 import com.example.authservice.repository.UserRepository;
+import com.example.authservice.security.CustomUserDetails;
 import com.example.authservice.security.JwtTokenProvider;
 import com.example.authservice.service.impl.AuthServiceImpl;
 import jakarta.servlet.http.HttpServletResponse;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.DisabledException;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
@@ -170,17 +173,16 @@ public class AuthServiceTest {
         user.setEmailVerified(true);
 
         Authentication authentication = mock(Authentication.class);
-        UserDetails userDetails = mock(UserDetails.class);
+        CustomUserDetails userDetails = mock(CustomUserDetails.class);
 
         RefreshToken refreshToken = new RefreshToken();
         refreshToken.setToken("valid-refresh-token");
         refreshToken.setExpiresAt(Instant.now().plusSeconds(3600));
 
-        when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(user));
-        when(encoder.matches("password123", "encodedPassword")).thenReturn(true);
         when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
                 .thenReturn(authentication);
         when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(userDetails.getUser()).thenReturn(user);
         when(tokenProvider.generateAccessToken(userDetails)).thenReturn("access-token");
         when(refreshTokenRepository.findByUserId(userId)).thenReturn(List.of(refreshToken));
 
@@ -190,8 +192,6 @@ public class AuthServiceTest {
         // then
         assertThat(result).isEqualTo("access-token");
 
-        verify(userRepository).findByEmail("test@example.com");
-        verify(encoder).matches("password123", "encodedPassword");
         verify(authenticationManager).authenticate(any(UsernamePasswordAuthenticationToken.class));
         verify(tokenProvider).generateAccessToken(userDetails);
         verify(refreshTokenRepository).findByUserId(userId);
@@ -204,60 +204,50 @@ public class AuthServiceTest {
         UserRequest userRequest = new UserRequest("unknown@example.com", "password123");
         HttpServletResponse response = mock(HttpServletResponse.class);
 
-        when(userRepository.findByEmail("unknown@example.com")).thenReturn(Optional.empty());
+        when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
+                .thenThrow(new UsernameNotFoundException("Пользователь не найден"));
 
         // when & then
         assertThatThrownBy(() -> authService.signIn(userRequest, response))
                 .isInstanceOf(UsernameNotFoundException.class)
                 .hasMessage("Пользователь не найден");
 
-        verify(userRepository).findByEmail("unknown@example.com");
-        verifyNoInteractions(authenticationManager, tokenProvider);
+        verify(authenticationManager).authenticate(any(UsernamePasswordAuthenticationToken.class));
+        verifyNoInteractions(tokenProvider);
     }
 
     @Test
-    void signIn_shouldThrowIncorrectPasswordException_whenPasswordIsWrong() {
+    void signIn_shouldThrowBadCredentialsException_whenPasswordIsWrong() {
         // given
         UserRequest userRequest = new UserRequest("test@example.com", "wrong-password");
         HttpServletResponse response = mock(HttpServletResponse.class);
 
-        User user = new User();
-        user.setEmail("test@example.com");
-        user.setPassword("encodedPassword");
-
-        when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(user));
-        when(encoder.matches("wrong-password", "encodedPassword")).thenReturn(false);
+        when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
+                .thenThrow(new BadCredentialsException("Bad credentials"));
 
         // when & then
         assertThatThrownBy(() -> authService.signIn(userRequest, response))
-                .isInstanceOf(IncorrectPasswordException.class);
+                .isInstanceOf(BadCredentialsException.class);
 
-        verify(userRepository).findByEmail("test@example.com");
-        verify(encoder).matches("wrong-password", "encodedPassword");
-        verifyNoInteractions(authenticationManager, tokenProvider);
+        verify(authenticationManager).authenticate(any(UsernamePasswordAuthenticationToken.class));
+        verifyNoInteractions(tokenProvider);
     }
 
     @Test
-    void signIn_shouldThrowEmailNotConfirmedException_whenEmailNotVerified() {
+    void signIn_shouldThrowDisabledException_whenEmailNotVerified() {
         // given
         UserRequest userRequest = new UserRequest("test@example.com", "password123");
         HttpServletResponse response = mock(HttpServletResponse.class);
 
-        User user = new User();
-        user.setEmail("test@example.com");
-        user.setPassword("encodedPassword");
-        user.setEmailVerified(false);
-
-        when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(user));
-        when(encoder.matches("password123", "encodedPassword")).thenReturn(true);
+        when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
+                .thenThrow(new DisabledException("User is disabled"));
 
         // when & then
         assertThatThrownBy(() -> authService.signIn(userRequest, response))
-                .isInstanceOf(EmailNotConfirmedException.class);
+                .isInstanceOf(DisabledException.class);
 
-        verify(userRepository).findByEmail("test@example.com");
-        verify(encoder).matches("password123", "encodedPassword");
-        verifyNoInteractions(authenticationManager, tokenProvider);
+        verify(authenticationManager).authenticate(any(UsernamePasswordAuthenticationToken.class));
+        verifyNoInteractions(tokenProvider);
     }
 
     // ========================
@@ -371,32 +361,35 @@ public class AuthServiceTest {
     void newAccessToken_shouldReturnNewAccessToken_whenRefreshTokenIsValid() {
         // given
         String refreshTokenValue = "valid-refresh-token";
-        UserDetails userDetails = mock(UserDetails.class);
+        User user = new User();
+        user.setEmail("test@example.com");
+        user.setRole(Role.ROLE_USER);
+        user.setEmailVerified(true);
 
         RefreshToken validToken = new RefreshToken();
         validToken.setToken(refreshTokenValue);
+        validToken.setUser(user);
         validToken.setExpiresAt(Instant.now().plusSeconds(3600));
 
         when(refreshTokenRepository.findByToken(refreshTokenValue)).thenReturn(List.of(validToken));
-        when(tokenProvider.generateAccessToken(userDetails)).thenReturn("new-access-token");
+        when(tokenProvider.generateAccessToken(any(UserDetails.class))).thenReturn("new-access-token");
 
         // when
-        String result = authService.newAccessToken(refreshTokenValue, userDetails);
+        String result = authService.newAccessToken(refreshTokenValue);
 
         // then
         assertThat(result).isEqualTo("new-access-token");
         verify(refreshTokenRepository).findByToken(refreshTokenValue);
-        verify(tokenProvider).generateAccessToken(userDetails);
+        verify(tokenProvider).generateAccessToken(any(UserDetails.class));
     }
 
     @Test
     void newAccessToken_shouldThrowIllegalArgumentException_whenRefreshTokenIsEmpty() {
         // given
         String refreshTokenValue = "";
-        UserDetails userDetails = mock(UserDetails.class);
 
         // when & then
-        assertThatThrownBy(() -> authService.newAccessToken(refreshTokenValue, userDetails))
+        assertThatThrownBy(() -> authService.newAccessToken(refreshTokenValue))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Рефреш токен отсутствует или пустой");
 
@@ -407,10 +400,9 @@ public class AuthServiceTest {
     void newAccessToken_shouldThrowIllegalArgumentException_whenRefreshTokenIsNull() {
         // given
         String refreshTokenValue = null;
-        UserDetails userDetails = mock(UserDetails.class);
 
         // when & then
-        assertThatThrownBy(() -> authService.newAccessToken(refreshTokenValue, userDetails))
+        assertThatThrownBy(() -> authService.newAccessToken(refreshTokenValue))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Рефреш токен отсутствует или пустой");
 
@@ -421,10 +413,9 @@ public class AuthServiceTest {
     void newAccessToken_shouldThrowIllegalArgumentException_whenRefreshTokenIsBlank() {
         // given
         String refreshTokenValue = "   ";
-        UserDetails userDetails = mock(UserDetails.class);
 
         // when & then
-        assertThatThrownBy(() -> authService.newAccessToken(refreshTokenValue, userDetails))
+        assertThatThrownBy(() -> authService.newAccessToken(refreshTokenValue))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Рефреш токен отсутствует или пустой");
 
@@ -435,7 +426,6 @@ public class AuthServiceTest {
     void newAccessToken_shouldThrowIllegalArgumentException_whenNoValidTokenFound() {
         // given
         String refreshTokenValue = "expired-refresh-token";
-        UserDetails userDetails = mock(UserDetails.class);
 
         RefreshToken expiredToken = new RefreshToken();
         expiredToken.setToken(refreshTokenValue);
@@ -444,7 +434,7 @@ public class AuthServiceTest {
         when(refreshTokenRepository.findByToken(refreshTokenValue)).thenReturn(List.of(expiredToken));
 
         // when & then
-        assertThatThrownBy(() -> authService.newAccessToken(refreshTokenValue, userDetails))
+        assertThatThrownBy(() -> authService.newAccessToken(refreshTokenValue))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("не найден токен");
 
