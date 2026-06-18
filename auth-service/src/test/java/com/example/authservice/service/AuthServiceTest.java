@@ -10,8 +10,8 @@ import com.example.authservice.entity.Outbox;
 import com.example.authservice.entity.RefreshToken;
 import com.example.authservice.entity.User;
 import com.example.authservice.exception.auth.EmailAlreadyExistsException;
-import com.example.authservice.exception.auth.EmailNotConfirmedException;
 import com.example.authservice.exception.auth.IncorrectPasswordException;
+import com.example.authservice.exception.auth.RefreshTokenNotFoundException;
 import com.example.authservice.mapper.UserMapper;
 import com.example.authservice.repository.EmailVerificationCodeRepository;
 import com.example.authservice.repository.OutboxRepository;
@@ -23,8 +23,6 @@ import com.example.authservice.service.impl.AuthServiceImpl;
 import jakarta.servlet.http.HttpServletResponse;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.springframework.security.authentication.BadCredentialsException;
-import org.springframework.security.authentication.DisabledException;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
@@ -34,6 +32,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -358,7 +358,9 @@ public class AuthServiceTest {
     void newAccessToken_shouldReturnNewAccessToken_whenRefreshTokenIsValid() {
         // given
         String refreshTokenValue = "valid-refresh-token";
+        HttpServletResponse response = mock(HttpServletResponse.class);
         User user = new User();
+        user.setId(UUID.randomUUID());
         user.setEmail("test@example.com");
         user.setRole(Role.ROLE_USER);
         user.setEmailVerified(true);
@@ -368,25 +370,30 @@ public class AuthServiceTest {
         validToken.setUser(user);
         validToken.setExpiresAt(Instant.now().plusSeconds(3600));
 
-        when(refreshTokenRepository.findByToken(refreshTokenValue)).thenReturn(List.of(validToken));
+        when(refreshTokenRepository.findByToken(refreshTokenValue)).thenReturn(Optional.of(validToken));
+        when(tokenProvider.createRefreshToken(user)).thenReturn("new-refresh-token");
         when(tokenProvider.generateAccessToken(any(UserDetails.class))).thenReturn("new-access-token");
 
         // when
-        String result = authService.newAccessToken(refreshTokenValue);
+        String result = authService.newAccessToken(refreshTokenValue, response);
 
         // then
         assertThat(result).isEqualTo("new-access-token");
         verify(refreshTokenRepository).findByToken(refreshTokenValue);
+        verify(refreshTokenRepository).deleteAllByUserId(user.getId());
+        verify(tokenProvider).createRefreshToken(user);
         verify(tokenProvider).generateAccessToken(any(UserDetails.class));
+        verify(response).addHeader(eq(HttpHeaders.SET_COOKIE), anyString());
     }
 
     @Test
     void newAccessToken_shouldThrowIllegalArgumentException_whenRefreshTokenIsEmpty() {
         // given
         String refreshTokenValue = "";
+        HttpServletResponse response = mock(HttpServletResponse.class);
 
         // when & then
-        assertThatThrownBy(() -> authService.newAccessToken(refreshTokenValue))
+        assertThatThrownBy(() -> authService.newAccessToken(refreshTokenValue, response))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Рефреш токен отсутствует или пустой");
 
@@ -397,9 +404,10 @@ public class AuthServiceTest {
     void newAccessToken_shouldThrowIllegalArgumentException_whenRefreshTokenIsNull() {
         // given
         String refreshTokenValue = null;
+        HttpServletResponse response = mock(HttpServletResponse.class);
 
         // when & then
-        assertThatThrownBy(() -> authService.newAccessToken(refreshTokenValue))
+        assertThatThrownBy(() -> authService.newAccessToken(refreshTokenValue, response))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Рефреш токен отсутствует или пустой");
 
@@ -410,9 +418,10 @@ public class AuthServiceTest {
     void newAccessToken_shouldThrowIllegalArgumentException_whenRefreshTokenIsBlank() {
         // given
         String refreshTokenValue = "   ";
+        HttpServletResponse response = mock(HttpServletResponse.class);
 
         // when & then
-        assertThatThrownBy(() -> authService.newAccessToken(refreshTokenValue))
+        assertThatThrownBy(() -> authService.newAccessToken(refreshTokenValue, response))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Рефреш токен отсутствует или пустой");
 
@@ -420,20 +429,38 @@ public class AuthServiceTest {
     }
 
     @Test
-    void newAccessToken_shouldThrowIllegalArgumentException_whenNoValidTokenFound() {
+    void newAccessToken_shouldThrowRefreshTokenNotFoundException_whenTokenNotFound() {
+        // given
+        String refreshTokenValue = "non-existent-refresh-token";
+        HttpServletResponse response = mock(HttpServletResponse.class);
+
+        when(refreshTokenRepository.findByToken(refreshTokenValue)).thenReturn(Optional.empty());
+
+        // when & then
+        assertThatThrownBy(() -> authService.newAccessToken(refreshTokenValue, response))
+                .isInstanceOf(RefreshTokenNotFoundException.class)
+                .hasMessage("не найден токен");
+
+        verify(refreshTokenRepository).findByToken(refreshTokenValue);
+        verify(tokenProvider, never()).generateAccessToken(any());
+    }
+
+    @Test
+    void newAccessToken_shouldThrowIllegalArgumentException_whenTokenIsExpired() {
         // given
         String refreshTokenValue = "expired-refresh-token";
+        HttpServletResponse response = mock(HttpServletResponse.class);
 
         RefreshToken expiredToken = new RefreshToken();
         expiredToken.setToken(refreshTokenValue);
         expiredToken.setExpiresAt(Instant.now().minusSeconds(3600));
 
-        when(refreshTokenRepository.findByToken(refreshTokenValue)).thenReturn(List.of(expiredToken));
+        when(refreshTokenRepository.findByToken(refreshTokenValue)).thenReturn(Optional.of(expiredToken));
 
         // when & then
-        assertThatThrownBy(() -> authService.newAccessToken(refreshTokenValue))
+        assertThatThrownBy(() -> authService.newAccessToken(refreshTokenValue, response))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("не найден токен");
+                .hasMessage("Сроку действия токина истек");
 
         verify(refreshTokenRepository).findByToken(refreshTokenValue);
         verify(tokenProvider, never()).generateAccessToken(any());

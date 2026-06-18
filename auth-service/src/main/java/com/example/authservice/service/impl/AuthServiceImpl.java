@@ -137,15 +137,7 @@ public class AuthServiceImpl implements AuthService {
         refreshTokenRepository.deleteAllByUserId(user.getId());
         String refreshToken = tokenProvider.createRefreshToken(user);
 
-        ResponseCookie cookie = ResponseCookie.from("refreshToken", refreshToken)
-                .httpOnly(true)
-                .secure(false)
-                .path("/api/auth/refresh")
-                .maxAge(30 * 24 * 60 * 60)
-                .sameSite("Strict")
-                .build();
-
-        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+        addRefreshTokenInCookie(response, refreshToken);
 
         return accessToken;
     }
@@ -179,7 +171,7 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public String newAccessToken(String maybeRefreshToken) {
+    public String newAccessToken(String maybeRefreshToken, HttpServletResponse response) {
         if (!StringUtils.hasText(maybeRefreshToken)) {
             throw new IllegalArgumentException("Рефреш токен отсутствует или пустой");
         }
@@ -191,8 +183,27 @@ public class AuthServiceImpl implements AuthService {
             throw new IllegalArgumentException("Сроку действия токина истек");
         }
 
-        CustomUserDetails userDetails = new CustomUserDetails(refreshToken.getUser());
+        User user = refreshToken.getUser();
+
+        refreshTokenRepository.deleteAllByUserId(refreshToken.getUser().getId());
+        String newRefreshToken = tokenProvider.createRefreshToken(user);
+
+        addRefreshTokenInCookie(response, newRefreshToken);
+
+        CustomUserDetails userDetails = new CustomUserDetails(user);
         return tokenProvider.generateAccessToken(userDetails);
+    }
+
+    private void addRefreshTokenInCookie(HttpServletResponse response, String newRefreshToken) {
+        ResponseCookie cookie = ResponseCookie.from("refreshToken", newRefreshToken)
+                .httpOnly(true)
+                .secure(false)
+                .path("/api/auth/refresh")
+                .maxAge(30 * 24 * 60 * 60)
+                .sameSite("Strict")
+                .build();
+
+        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
     }
 
     @Override

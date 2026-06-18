@@ -12,7 +12,7 @@ public interface AuthService {
 
     void verifyAcc(VerifyRequest verifyRequest);
 
-    String newAccessToken(String refreshToken);
+    String newAccessToken(String refreshToken, HttpServletResponse response);
 
     void refreshVerifyCode(UserRequest userDto);
 }

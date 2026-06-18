@@ -8,8 +8,6 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -44,9 +42,10 @@ public class AuthController {
     }
 
     @PostMapping("/refresh")
-    public ResponseEntity<String> newAccessToken(@CookieValue(name = "refreshToken") String refreshToken) {
+    public ResponseEntity<String> newAccessToken(@CookieValue(name = "refreshToken") String refreshToken,
+                                                 HttpServletResponse response) {
 
-        String accessToken = authService.newAccessToken(refreshToken);
+        String accessToken = authService.newAccessToken(refreshToken, response);
         return ResponseEntity.ok(accessToken);
     }
 
