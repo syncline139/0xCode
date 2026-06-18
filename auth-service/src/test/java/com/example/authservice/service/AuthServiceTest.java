@@ -175,16 +175,12 @@ public class AuthServiceTest {
         Authentication authentication = mock(Authentication.class);
         CustomUserDetails userDetails = mock(CustomUserDetails.class);
 
-        RefreshToken refreshToken = new RefreshToken();
-        refreshToken.setToken("valid-refresh-token");
-        refreshToken.setExpiresAt(Instant.now().plusSeconds(3600));
-
         when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
                 .thenReturn(authentication);
         when(authentication.getPrincipal()).thenReturn(userDetails);
         when(userDetails.getUser()).thenReturn(user);
         when(tokenProvider.generateAccessToken(userDetails)).thenReturn("access-token");
-        when(refreshTokenRepository.findByUserId(userId)).thenReturn(List.of(refreshToken));
+        when(tokenProvider.createRefreshToken(user)).thenReturn("valid-refresh-token");
 
         // when
         String result = authService.signIn(userRequest, response);
@@ -194,7 +190,8 @@ public class AuthServiceTest {
 
         verify(authenticationManager).authenticate(any(UsernamePasswordAuthenticationToken.class));
         verify(tokenProvider).generateAccessToken(userDetails);
-        verify(refreshTokenRepository).findByUserId(userId);
+        verify(refreshTokenRepository).deleteAllByUserId(userId);
+        verify(tokenProvider).createRefreshToken(user);
         verify(response).addHeader(eq(HttpHeaders.SET_COOKIE), anyString());
     }
 

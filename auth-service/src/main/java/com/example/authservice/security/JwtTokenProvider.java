@@ -37,7 +37,7 @@ public class JwtTokenProvider {
 
 
     @Transactional
-    public void createRefreshToken(User user) {
+    public String createRefreshToken(User user) {
 
         SecretKey secretKey = Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
 
@@ -56,6 +56,8 @@ public class JwtTokenProvider {
                         Instant.now().plusMillis(jwtExpirationMs)
                 )
         );
+
+        return refreshToken;
     }
 
     // Создать JWT-токен для аутентифицированного пользователя
