@@ -17,7 +17,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.crypto.SecretKey;
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Date;
 import java.util.stream.Collectors;
@@ -39,7 +38,7 @@ public class JwtTokenProvider {
     @Transactional
     public String createRefreshToken(User user) {
 
-        SecretKey secretKey = Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
+        SecretKey secretKey = getSigningKey();
 
         String refreshToken = Jwts.builder()
                 .subject(user.getEmail())
@@ -66,9 +65,7 @@ public class JwtTokenProvider {
         Date expiryDate = new Date(now.getTime() + jwtExpirationMs);
 
         // Создать ключ подписи на основе секрета
-        SecretKey key = Keys.hmacShaKeyFor(
-                Decoders.BASE64.decode(jwtSecret)
-        );
+        SecretKey secretKey = getSigningKey();
 
         return Jwts.builder()
                 .subject(userDetails.getUsername())
@@ -77,8 +74,12 @@ public class JwtTokenProvider {
                         .collect(Collectors.toList()))
                 .issuedAt(now)
                 .expiration(expiryDate)
-                .signWith(key)
+                .signWith(secretKey)
                 .compact();
+    }
+
+    private SecretKey getSigningKey() {
+        return Keys.hmacShaKeyFor(Decoders.BASE64.decode(jwtSecret));
     }
 
     // Извлечь имя пользователя из действительного токена
@@ -99,9 +100,7 @@ public class JwtTokenProvider {
     }
 
     private Claims parseToken(String token) {
-        SecretKey key = Keys.hmacShaKeyFor(
-                Decoders.BASE64.decode(jwtSecret)
-        );
+        SecretKey key = getSigningKey();
 
         return Jwts.parser()
                 .verifyWith(key)

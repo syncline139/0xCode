@@ -11,6 +11,7 @@ import com.example.authservice.entity.RefreshToken;
 import com.example.authservice.entity.User;
 import com.example.authservice.exception.auth.EmailAlreadyExistsException;
 import com.example.authservice.exception.auth.IncorrectPasswordException;
+import com.example.authservice.exception.auth.RefreshTokenNotFoundException;
 import com.example.authservice.mapper.UserMapper;
 import com.example.authservice.repository.EmailVerificationCodeRepository;
 import com.example.authservice.repository.OutboxRepository;
@@ -178,20 +179,20 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public String newAccessToken(String refreshToken) {
-        if (!StringUtils.hasText(refreshToken)) {
+    public String newAccessToken(String maybeRefreshToken) {
+        if (!StringUtils.hasText(maybeRefreshToken)) {
             throw new IllegalArgumentException("Рефреш токен отсутствует или пустой");
         }
 
-        List<RefreshToken> refreshTokens = refreshTokenRepository.findByToken(refreshToken);
+        RefreshToken refreshToken = refreshTokenRepository.findByToken(maybeRefreshToken)
+                .orElseThrow(() -> new RefreshTokenNotFoundException("не найден токен"));
 
-        for (RefreshToken token : refreshTokens) {
-            if (token.getExpiresAt().isAfter(Instant.now())) {
-                CustomUserDetails userDetails = new CustomUserDetails(token.getUser());
-                return tokenProvider.generateAccessToken(userDetails);
-            }
+        if (refreshToken.getExpiresAt().isBefore(Instant.now())) {
+            throw new IllegalArgumentException("Сроку действия токина истек");
         }
-        throw new IllegalArgumentException("не найден токен");
+
+        CustomUserDetails userDetails = new CustomUserDetails(refreshToken.getUser());
+        return tokenProvider.generateAccessToken(userDetails);
     }
 
     @Override
