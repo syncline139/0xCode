@@ -37,7 +37,12 @@ public class SecurityConfig {
                 // Configure endpoint authorization
                 .authorizeHttpRequests(auth -> auth
                         // Allow unauthenticated access to auth endpoints
-                        .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers(
+                                "/api/auth/sign-up",
+                                "/api/auth/sign-in",
+                                "/api/auth/verify",
+                                "/api/auth/refresh",
+                                "/api/auth/refreshVerifyCode").permitAll()
                         .anyRequest().authenticated()
                 )
                 // Add JWT filter before the standard auth filter

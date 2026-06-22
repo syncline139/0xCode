@@ -3,6 +3,7 @@ package com.example.authservice.controller;
 import com.example.authservice.dto.request.UserRequest;
 import com.example.authservice.dto.request.VerifyRequest;
 import com.example.authservice.dto.response.AuthTokens;
+import com.example.authservice.security.CustomUserDetails;
 import com.example.authservice.service.AuthenticationService;
 import com.example.authservice.service.EmailVerificationService;
 import com.example.authservice.service.RefreshTokenService;
@@ -14,12 +15,17 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/auth")
 public class AuthController {
+
+    private static final String REFRESH_TOKEN_COOKIE = "refreshToken";
+    private static final String REFRESH_TOKEN_COOKIE_PATH = "/api/auth";
+    private static final String LEGACY_REFRESH_TOKEN_COOKIE_PATH = "/api/auth/refresh";
 
     private final RegistrationService registrationService;
     private final AuthenticationService authenticationService;
@@ -70,12 +76,41 @@ public class AuthController {
         return ResponseEntity.ok().build();
     }
 
+    @PostMapping("/logout")
+    public ResponseEntity<HttpStatus> logout(@CookieValue(name = REFRESH_TOKEN_COOKIE, required = false) String refreshToken,
+                                             @AuthenticationPrincipal CustomUserDetails principal,
+                                             HttpServletResponse response) {
+
+        refreshTokenService.logout(principal.getUser().getId(), refreshToken);
+        cleanRefreshToken(response);
+        return ResponseEntity.ok().build();
+    }
+
     private void addRefreshTokenInCookie(HttpServletResponse response, String newRefreshToken) {
-        ResponseCookie cookie = ResponseCookie.from("refreshToken", newRefreshToken)
+        cleanRefreshTokenAtPath(response, LEGACY_REFRESH_TOKEN_COOKIE_PATH);
+
+        ResponseCookie cookie = ResponseCookie.from(REFRESH_TOKEN_COOKIE, newRefreshToken)
                 .httpOnly(true)
                 .secure(false)
-                .path("/api/auth/refresh")
+                .path(REFRESH_TOKEN_COOKIE_PATH)
                 .maxAge(30 * 24 * 60 * 60)
+                .sameSite("Strict")
+                .build();
+
+        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+    }
+
+    private void cleanRefreshToken(HttpServletResponse response) {
+        cleanRefreshTokenAtPath(response, REFRESH_TOKEN_COOKIE_PATH);
+        cleanRefreshTokenAtPath(response, LEGACY_REFRESH_TOKEN_COOKIE_PATH);
+    }
+
+    private void cleanRefreshTokenAtPath(HttpServletResponse response, String path) {
+        ResponseCookie cookie = ResponseCookie.from(REFRESH_TOKEN_COOKIE, "")
+                .httpOnly(true)
+                .secure(false)
+                .path(path)
+                .maxAge(0)
                 .sameSite("Strict")
                 .build();
 

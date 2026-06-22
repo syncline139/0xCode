@@ -14,6 +14,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.Instant;
+import java.util.Objects;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -42,6 +44,16 @@ public class RefreshTokenService {
         return new AuthTokens(authTokens.accessToken(), authTokens.refreshToken());
     }
 
+    @Transactional
+    public void logout(UUID userId, String refreshToken) {
+        Objects.requireNonNull(userId, "userId must not be null");
+
+        if (StringUtils.hasText(refreshToken)) {
+            refreshTokenRepository.deleteByUserIdAndToken(userId, refreshToken);
+        } else {
+            refreshTokenRepository.deleteAllByUserId(userId);
+        }
+    }
 
     public AuthTokens issueTokens(User user) {
         refreshTokenRepository.deleteAllByUserId(user.getId());
