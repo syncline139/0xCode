@@ -3,6 +3,7 @@ package com.example.authservice.exception;
 import com.example.authservice.exception.auth.EmailAlreadyExistsException;
 import com.example.authservice.exception.auth.EmailNotConfirmedException;
 import com.example.authservice.exception.auth.IncorrectPasswordException;
+import com.example.authservice.exception.auth.InvalidVerificationCodeException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -53,6 +54,14 @@ public class GlobalExceptionHandler {
     public ResponseEntity<String> handleIncorrectPasswordExceptions(DisabledException ex) {
 
         String message = "Нужно подтвердить почту при регистрации";
+
+        return new ResponseEntity<>(message, HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(InvalidVerificationCodeException.class)
+    public ResponseEntity<String> handleInvalidVerificationCodeExceptions(InvalidVerificationCodeException ex) {
+
+        String message = "Неверный код для подтверждения акканут";
 
         return new ResponseEntity<>(message, HttpStatus.BAD_REQUEST);
     }

@@ -2,11 +2,17 @@ package com.example.authservice.controller;
 
 import com.example.authservice.dto.request.UserRequest;
 import com.example.authservice.dto.request.VerifyRequest;
-import com.example.authservice.service.AuthService;
+import com.example.authservice.dto.response.AuthTokens;
+import com.example.authservice.service.AuthenticationService;
+import com.example.authservice.service.EmailVerificationService;
+import com.example.authservice.service.RefreshTokenService;
+import com.example.authservice.service.RegistrationService;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -15,13 +21,15 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/auth")
 public class AuthController {
 
-    private final AuthService authService;
-
+    private final RegistrationService registrationService;
+    private final AuthenticationService authenticationService;
+    private final EmailVerificationService emailVerificationService;
+    private final RefreshTokenService refreshTokenService;
 
     @PostMapping("/sign-up")
     public ResponseEntity<String> signUp(@RequestBody @Valid UserRequest userDto) {
 
-        authService.signUp(userDto);
+        registrationService.signUp(userDto);
 
         return ResponseEntity.ok("Код отправлен на email");
     }
@@ -30,14 +38,17 @@ public class AuthController {
     public ResponseEntity<String> signIn(@RequestBody @Valid UserRequest userDto,
                                          HttpServletResponse response) {
 
-        String accessToken = authService.signIn(userDto, response);
-        return ResponseEntity.status(HttpStatus.OK).body(accessToken);
+        AuthTokens authTokens = authenticationService.signIn(userDto);
+        addRefreshTokenInCookie(response, authTokens.refreshToken());
+
+        return ResponseEntity.status(HttpStatus.OK).body(authTokens.accessToken());
     }
 
     @PostMapping("/verify")
     public ResponseEntity<String> verifyAcc(@RequestBody @Valid VerifyRequest verifyRequest) {
 
-        authService.verifyAcc(verifyRequest);
+        emailVerificationService.verifyAcc(verifyRequest);
+
         return ResponseEntity.ok("Аккаунт успешно подтвержен");
     }
 
@@ -45,15 +56,29 @@ public class AuthController {
     public ResponseEntity<String> newAccessToken(@CookieValue(name = "refreshToken") String refreshToken,
                                                  HttpServletResponse response) {
 
-        String accessToken = authService.newAccessToken(refreshToken, response);
-        return ResponseEntity.ok(accessToken);
+        AuthTokens authTokens = refreshTokenService.newAccessToken(refreshToken);
+        addRefreshTokenInCookie(response, authTokens.refreshToken());
+
+        return ResponseEntity.ok(authTokens.accessToken());
     }
 
     @PostMapping("/refreshVerifyCode")
     public ResponseEntity<HttpStatus> refreshVerifyCode(@RequestBody @Valid UserRequest userDto) {
 
-        authService.refreshVerifyCode(userDto);
+        emailVerificationService.refreshVerifyCode(userDto);
 
         return ResponseEntity.ok().build();
+    }
+
+    private void addRefreshTokenInCookie(HttpServletResponse response, String newRefreshToken) {
+        ResponseCookie cookie = ResponseCookie.from("refreshToken", newRefreshToken)
+                .httpOnly(true)
+                .secure(false)
+                .path("/api/auth/refresh")
+                .maxAge(30 * 24 * 60 * 60)
+                .sameSite("Strict")
+                .build();
+
+        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
     }
 }

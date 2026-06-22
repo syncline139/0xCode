@@ -1,8 +1,7 @@
-package com.example.authservice.service.impl;
+package com.example.authservice.security;
 
 import com.example.authservice.entity.User;
 import com.example.authservice.repository.UserRepository;
-import com.example.authservice.security.CustomUserDetails;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
