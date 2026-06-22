@@ -112,7 +112,7 @@ public class AuthServiceImpl implements AuthService {
         StringBuilder sb = new StringBuilder();
 
         for (int i = 0; i < 5; i++) {
-            sb.append(random.nextInt(0, 9));
+            sb.append(random.nextInt(0, 10));
         }
 
         return sb.toString();

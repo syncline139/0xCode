@@ -12,7 +12,6 @@ build/
 .project
 .settings
 application-local.yaml
-application.yaml
 .springBeans
 .sts4-cache
 bin/
