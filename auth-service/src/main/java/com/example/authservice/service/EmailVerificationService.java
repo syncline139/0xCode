@@ -20,15 +20,17 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.ObjectMapper;
 
+import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
-import java.util.Random;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class EmailVerificationService {
+
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     private final UserRepository userRepository;
     private final EmailVerificationCodeRepository emailVerificationCodeRepository;
@@ -76,7 +78,7 @@ public class EmailVerificationService {
     }
 
     public void sendEmailVerificationCode(User user) {
-        String code = generatedCode();
+        String code = generateCode();
         log.info("Сгенерирован код для подтверрдждения почты {}", code);
 
         EmailVerificationCode emailVerificationCode = new EmailVerificationCode(
@@ -97,15 +99,11 @@ public class EmailVerificationService {
         log.info("Сообщения успешно сохранено в таблице outbox");
     }
 
-    private static String generatedCode() {
-        Random random = new Random();
-        StringBuilder sb = new StringBuilder();
 
-        for (int i = 0; i < 5; i++) {
-            sb.append(random.nextInt(0, 10));
-        }
+    private static String generateCode() {
+        int code = SECURE_RANDOM.nextInt(100_000);
 
-        return sb.toString();
+        return String.format("%05d", code);
     }
 
     private boolean verify(String rawPassword, String encodedPassword) {
